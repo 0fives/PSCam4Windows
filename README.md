@@ -10,11 +10,15 @@ Plug in a **PS3 Eye**, a **PS2 EyeToy** or a **PS4 Camera**, and it shows up in 
 
 No kernel drivers, and no Zadig.
 
-[![Download](https://img.shields.io/github/v/release/BumbleTree/PSCam4Windows?style=for-the-badge&label=Download&color=2f81f7)](https://github.com/BumbleTree/PSCam4Windows/releases/latest)
-&nbsp;
 ![Windows 10 / 11](https://img.shields.io/badge/Windows%2010%20%7C%2011-444?style=for-the-badge)
 &nbsp;
 ![GPLv2](https://img.shields.io/badge/license-GPLv2-444?style=for-the-badge)
+
+<br>
+
+> **This is a fork of [BumbleTree/PSCam4Windows](https://github.com/BumbleTree/PSCam4Windows) that adds Windows 10 support.** The original is Windows 11 only. Everything else is theirs. See [Windows 10](#windows-10) below for how it works and what it can't do.
+>
+> **Status:** the PS3 Eye has been tested on Windows 10 and works in OBS. The PS2 EyeToy and PS4 Camera use the same code path but have **not been tested** on Windows 10. There is no prebuilt release on this fork, so [build it yourself](#build-it-yourself).
 
 <br>
 
@@ -33,7 +37,24 @@ PSCam4Win runs as a tray application. It reads the camera over USB and publishes
 - **Idle power down.** When no program is using a camera, it is put into low-power mode (LED off) and uses no CPU. Waking takes about a second.
 - **Microphones.** The PS3 Eye and PS2 EyeToy microphones appear as standard Windows recording devices. The PS4 camera's 4-microphone array works differently, as described below.
 - **Optional start at logon.** Launched by a scheduled task, so there is no console window and no UAC prompt.
-- **No kernel drivers.** Capture uses Microsoft's in-box WinUSB driver and the video is published through Media Foundation. Memory Integrity / Core Isolation can stay enabled.
+- **No kernel drivers.** Capture uses Microsoft's in-box WinUSB driver and the video is published through Media Foundation (Windows 11) or DirectShow (Windows 10). Memory Integrity / Core Isolation can stay enabled.
+
+<br>
+
+## Windows 10
+
+Windows 10 (version 2004 / build 19041 or later) is supported by this fork. Windows 10 has no Media Foundation virtual camera API, so there the camera is published as a classic **DirectShow** capture device instead. The tray picks the right method automatically. Windows 11 behaves exactly as in the original.
+
+**Works with** desktop apps that use DirectShow: OBS Studio ("Video Capture Device"), VLC, and many other desktop programs, in both 64-bit and 32-bit builds.
+
+**Does not work with** Store/UWP apps, including the **Windows Camera app**. Those only see Media Foundation cameras, and offering one on Windows 10 would need a kernel driver, which this project avoids. Some apps (certain versions of Zoom, Teams, browsers) may or may not list it, depending on how they enumerate cameras.
+
+Also worth knowing:
+
+- Output is YUY2 and RGB24. There is no NV12 or MJPEG on the DirectShow path.
+- Because the camera filter runs inside the app using it, rather than in a Windows service, any program running as you can keep the camera awake. On Windows 11 that is locked down; on Windows 10 it can't be.
+- Updating PSCam4Win while an app is using the camera can fail on a locked file. Close the app first.
+- How it works is in [README-TECHNICAL.md](README-TECHNICAL.md#windows-10-support-directshow-path).
 
 <br>
 
@@ -60,9 +81,9 @@ PSCam4Win runs as a tray application. It reads the camera over USB and publishes
 
 ## Install
 
-1. **[Download `PSCam4Win-Setup.exe`](https://github.com/BumbleTree/PSCam4Windows/releases/latest)** and run it.
+1. **Build `PSCam4Win-Setup.exe`** (see [Build it yourself](#build-it-yourself)), or on **Windows 11** you can use the [original project's release](https://github.com/BumbleTree/PSCam4Windows/releases/latest). Run it; it asks for administrator rights.
 2. Tick the cameras you own, and whether it should start with Windows.
-3. Click through, then plug a camera in and open Discord.
+3. Click through, then plug a camera in and open OBS (or Discord on Windows 11).
 
 The wizard does everything: installs the USB drivers for the cameras you picked, registers the virtual cameras, sets up the startup task and starts the tray app. The PS4 camera's firmware is fetched automatically during setup.
 
@@ -193,6 +214,7 @@ Note that this is a room-scale array in a plastic bar a metre or two away, so ex
 | What you see | What to do |
 |---|---|
 | The camera isn't in any app | Check the tray icon is there. Then check camera access is allowed under Privacy & security → Camera. |
+| **Windows 10:** not in the Windows Camera app | Expected. That app only lists Media Foundation cameras. Use OBS, VLC or another DirectShow app. |
 | Tooltip says *camera not detected* | Unplug and replug the USB cable. It'll be picked up on its own. |
 | Black picture for a moment | It's waking up, which takes about a second. If it stays black, make sure the tray app is running. |
 | *"PS4 camera needs a replug"* | Unplug the PS4 camera and plug it back in. It reloads its firmware and recovers by itself. |
@@ -213,6 +235,14 @@ A few things are the hardware, not the software, and no update will change them:
 <br>
 
 ## Build it yourself
+
+You need Visual Studio 2019/2022 Build Tools with the C++ workload (including the x86 tools, for the 32-bit camera filter). From the repository root:
+
+```bat
+cmd /c build.bat
+```
+
+That produces `build\PSCam4Win-Setup.exe`. Run `tests\build.bat` afterwards to run the hardware-free tests.
 
 Everything is in [**README-TECHNICAL.md**](README-TECHNICAL.md): how to build, how the pipeline fits together, the USB and performance details, and what was measured on real hardware.
 

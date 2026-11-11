@@ -29,6 +29,8 @@ USB transports, `CaptureController`, FrameBus, the tray, the installer — is sh
 * **32-bit applications** load `PSCam4WinDS32.dll` instead: the same `DsCamera.cpp` built for x86
   by `build_ds32.bat` (needs the VS x86 tools). Setup registers it with the 32-bit `regsvr32`, and
   the tray lists each camera in both registry views.
+* **Tested on hardware:** PS3 Eye on Windows 10 (build 19045), in OBS. EyeToy and PS4 Camera are
+  untested on Windows 10.
 * **Tests:** `tests/ds_tests.cpp` drives the filter through its COM interfaces with a stand-in
   renderer and bus. Hardware-free.
 
