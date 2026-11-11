@@ -10,8 +10,8 @@
 #include <wrl/client.h>
 
 // winhttp.h hides this behind _WIN32_WINNT >= 0x0603 (Win 8.1), which the
-// build does not define; the installer already requires Windows 11, where the
-// flag is fully supported.
+// build does not define; the installer requires Windows 10 2004 or later, where
+// the flag is fully supported.
 #ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY_CONFIG
 #define WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY_CONFIG 4
 #endif
@@ -184,7 +184,7 @@ bool StopOneService(SC_HANDLE scm, const wchar_t* name, DWORD timeoutMs,
 
 // ---- environment -----------------------------------------------------------
 
-bool IsWindows11OrLater()
+static bool OsBuildAtLeast(DWORD build)
 {
     using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
     const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
@@ -198,8 +198,14 @@ bool IsWindows11OrLater()
     info.dwOSVersionInfoSize = sizeof(info);
     if (rtlGetVersion(&info) != 0)
         return false;
-    return info.dwBuildNumber >= 22000;
+    return info.dwBuildNumber >= build;
 }
+
+// Windows 10 2004 (19041) is the SDK baseline the build targets. Below Windows 11
+// the camera is presented through DirectShow instead of Media Foundation.
+bool IsSupportedWindows() { return OsBuildAtLeast(19041); }
+
+bool IsWindows11OrLater() { return OsBuildAtLeast(22000); }
 
 bool IsProcessElevated()
 {

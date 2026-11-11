@@ -18,6 +18,7 @@ namespace
 // driver\.
 const Item kItems[] = {
     { IDR_PAYLOAD_DLL,   kDllName,                             Component::Core },
+    { IDR_PAYLOAD_DS32,  kDs32DllName,                         Component::Core },
     { IDR_PAYLOAD_TRAY,  kTrayExeName,                         Component::Core },
     { IDR_LICENSE,       L"LICENSE.txt",                       Component::Core },
     { IDR_THIRD_PARTY,   L"THIRD_PARTY_NOTICES.txt",            Component::Core },

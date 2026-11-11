@@ -3,8 +3,34 @@
 Developer-facing companion to the [README](README.md). How the thing is built, how it fits
 together, and which of its limits are hardware rather than bugs.
 
-**PSCam4Win 4.1** — a Windows 11 virtual-camera hub for PlayStation cameras. C++17, Win32, no
+**PSCam4Win 4.1** — a Windows 10 / 11 virtual-camera hub for PlayStation cameras. C++17, Win32, no
 framework, GPLv2.
+
+## Windows 10 support (DirectShow path)
+
+Windows 10 has no `IMFVirtualCamera` (`MFCreateVirtualCamera` is 22000+), so on Windows 10 the camera
+is presented as a **DirectShow source filter** instead. Everything below the presentation layer —
+USB transports, `CaptureController`, FrameBus, the tray, the installer — is shared.
+
+* **Selection is automatic.** The tray looks for `MFCreateVirtualCamera` in `mfsensorgroup.dll`; if
+  it is absent it registers the slot's DirectShow filter instead (`host/DsRegistration.cpp`).
+* **The filter lives in `PSCam4Win.dll`** next to the MF media source (`source/DsCamera.cpp`), one
+  COM class per slot (`common/DsGuids.h`). It is written directly against the COM interfaces — the
+  DirectShow base-class library no longer ships with the SDK. It reads the same FrameBus and keeps
+  the same ControlBus keepalive.
+* **Output formats:** YUY2 (zero-copy from the bus) and RGB24, with the same 2:1 scaling rule and
+  frame-rate cap the MF path applies.
+* **It runs inside the consuming application**, not the Frame Server, so it reads as the interactive
+  user. The ControlBus is therefore created with `kSddlInteractiveUser` on this path only.
+* **Listing is dynamic**, like the MF path: the slot appears in the "Video Input Device" category
+  only while a physical camera occupies it.
+* **Limits:** DirectShow only (Media Foundation / UWP / Store apps — e.g. the Windows Camera app —
+  will not list it).
+* **32-bit applications** load `PSCam4WinDS32.dll` instead: the same `DsCamera.cpp` built for x86
+  by `build_ds32.bat` (needs the VS x86 tools). Setup registers it with the 32-bit `regsvr32`, and
+  the tray lists each camera in both registry views.
+* **Tests:** `tests/ds_tests.cpp` drives the filter through its COM interfaces with a stand-in
+  renderer and bus. Hardware-free.
 
 ---
 

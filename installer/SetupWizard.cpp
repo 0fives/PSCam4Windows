@@ -217,7 +217,8 @@ void SetupWizard::OnInitFrame(HWND frame)
         L"package's certificate to the Trusted Root and Trusted Publishers "
         L"stores. Uninstalling removes everything setup installed, including "
         L"those certificates.\r\n\r\n"
-        L"Windows 11 is required. Administrator rights are required.",
+        L"Windows 10 (version 2004 or later) or Windows 11 is required. "
+        L"Administrator rights are required.",
         L"" PSCAM_VERSION_DISPLAY);
     SetDlgItemTextW(_pages[PageWelcome], IDC_WELCOME_TEXT, text);
 

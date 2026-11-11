@@ -29,6 +29,8 @@ namespace payload
 // than a build error.
 inline constexpr wchar_t kDllName[]     = L"PSCam4Win.dll";
 inline constexpr wchar_t kTrayExeName[] = L"PSCam4WinTray.exe";
+// 32-bit build of the DirectShow camera filter, for 32-bit applications.
+inline constexpr wchar_t kDs32DllName[] = L"PSCam4WinDS32.dll";
 
 struct Item
 {

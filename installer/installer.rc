@@ -13,6 +13,7 @@ IDI_SETUP ICON "res\\PSCam4Win.ico"
 
 // ---- embedded payload (raw, uncompressed) ----------------------------------
 IDR_PAYLOAD_DLL   RCDATA "build\\PSCam4Win.dll"
+IDR_PAYLOAD_DS32  RCDATA "build\\PSCam4WinDS32.dll"
 IDR_PAYLOAD_TRAY  RCDATA "build\\PSCam4WinTray.exe"
 IDR_LICENSE       RCDATA "LICENSE"
 IDR_THIRD_PARTY   RCDATA "THIRD_PARTY_NOTICES.txt"

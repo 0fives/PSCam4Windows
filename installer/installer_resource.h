@@ -57,6 +57,7 @@
 // RCDATA payload (raw, uncompressed)
 #define IDR_PAYLOAD_DLL         500   // build\PSCam4Win.dll
 #define IDR_PAYLOAD_TRAY        501   // build\PSCam4WinTray.exe
+#define IDR_PAYLOAD_DS32        504   // build\PSCam4WinDS32.dll
 #define IDR_LICENSE             502   // LICENSE (GPLv2 text)
 #define IDR_THIRD_PARTY          503   // THIRD_PARTY_NOTICES.txt
 #define IDR_INF_PS3             510   // driver\usb_device.inf

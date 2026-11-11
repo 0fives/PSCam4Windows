@@ -4,6 +4,10 @@
 // self-registration entry points, and module lifetime tracking.
 //
 #include "VCamSource.h"
+#include "DsCamera.h"
+#include "ComRegister.h"
+#include "../common/DsGuids.h"
+#include "../common/DsCategory.h"
 #include <new>
 
 static HMODULE g_module = nullptr;
@@ -229,6 +233,12 @@ STDAPI DllCanUnloadNow()
 
 STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void** ppv)
 {
+    // DirectShow camera classes (Windows 10 path) live in this DLL too.
+    bool handledByDs = false;
+    const HRESULT dsHr = DsGetClassObject(rclsid, riid, ppv, &handledByDs);
+    if (handledByDs)
+        return dsHr;
+
     int cameraIndex = -1;
     for (int i = 0; i < kVCamCount; ++i)
     {
@@ -249,8 +259,7 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void** ppv)
     return hr;
 }
 
-// Registers under HKLM\Software\Classes\CLSID so the Frame Server service
-// (which never reads HKCU) can activate the class. regsvr32 must run elevated.
+// regsvr32 must run elevated.
 STDAPI DllRegisterServer()
 {
     wchar_t modulePath[MAX_PATH];
@@ -261,48 +270,17 @@ STDAPI DllRegisterServer()
 
     for (int i = 0; i < kVCamCount; ++i)
     {
-        wchar_t keyPath[128];
-        swprintf_s(keyPath, L"Software\\Classes\\CLSID\\%s", kVCamClsidStrings[i]);
-
-        HKEY key = nullptr;
-        LSTATUS status = RegCreateKeyExW(HKEY_LOCAL_MACHINE, keyPath, 0, nullptr, 0,
-                                         KEY_WRITE, nullptr, &key, nullptr);
-        if (status != ERROR_SUCCESS)
-        {
-            overallStatus = status;
-            continue;
-        }
-
         wchar_t description[128];
+
         swprintf_s(description, L"PSCam4Win Virtual Camera Media Source #%d", i);
-        status = RegSetValueExW(key, nullptr, 0, REG_SZ,
-                       reinterpret_cast<const BYTE*>(description),
-                       static_cast<DWORD>((wcslen(description) + 1) * sizeof(wchar_t)));
+        LSTATUS status = RegisterClass32(kVCamClsidStrings[i], description, modulePath);
         if (status != ERROR_SUCCESS)
             overallStatus = status;
 
-        HKEY inproc = nullptr;
-        status = RegCreateKeyExW(key, L"InprocServer32", 0, nullptr, 0,
-                                 KEY_WRITE, nullptr, &inproc, nullptr);
-        if (status == ERROR_SUCCESS)
-        {
-            status = RegSetValueExW(inproc, nullptr, 0, REG_SZ,
-                           reinterpret_cast<const BYTE*>(modulePath),
-                           static_cast<DWORD>((wcslen(modulePath) + 1) * sizeof(wchar_t)));
-            if (status != ERROR_SUCCESS)
-                overallStatus = status;
-            const wchar_t threading[] = L"Both";
-            status = RegSetValueExW(inproc, L"ThreadingModel", 0, REG_SZ,
-                           reinterpret_cast<const BYTE*>(threading), sizeof(threading));
-            if (status != ERROR_SUCCESS)
-                overallStatus = status;
-            RegCloseKey(inproc);
-        }
-        else
-        {
+        swprintf_s(description, L"PSCam4Win DirectShow Camera #%d", i);
+        status = RegisterClass32(kDsClsidStrings[i], description, modulePath);
+        if (status != ERROR_SUCCESS)
             overallStatus = status;
-        }
-        RegCloseKey(key);
     }
     return overallStatus == ERROR_SUCCESS ? S_OK : HRESULT_FROM_WIN32(overallStatus);
 }
@@ -316,6 +294,12 @@ STDAPI DllUnregisterServer()
     {
         wchar_t keyPath[128];
         swprintf_s(keyPath, L"Software\\Classes\\CLSID\\%s", kVCamClsidStrings[i]);
+        RegDeleteTreeW(HKEY_LOCAL_MACHINE, keyPath);
+
+        // A DirectShow camera that is still listed as a device must not outlive
+        // its class registration (applications would list a camera they cannot open).
+        dscategory::RemoveSlot(i);
+        swprintf_s(keyPath, L"Software\\Classes\\CLSID\\%s", kDsClsidStrings[i]);
         RegDeleteTreeW(HKEY_LOCAL_MACHINE, keyPath);
     }
     return S_OK;

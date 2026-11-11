@@ -96,12 +96,23 @@ cl %CFLAGS% "%ROOT%source\VCamSource.cpp" /Fo"%OUT%\VCamSource.obj"
 if errorlevel 1 exit /b 1
 cl %CFLAGS% "%ROOT%source\dllmain.cpp" /Fo"%OUT%\dllmain.obj"
 if errorlevel 1 exit /b 1
+rem DirectShow camera filter (the Windows 10 path), same DLL as the MF media source.
+cl %CFLAGS% "%ROOT%source\DsCamera.cpp" /Fo"%OUT%\DsCamera.obj"
+if errorlevel 1 exit /b 1
 
 link /nologo /DLL /DEF:"%ROOT%source\PSCam4Win.def" /OUT:"%OUT%\PSCam4Win.dll" ^
-    "%OUT%\VCamSource.obj" "%OUT%\dllmain.obj" ^
-    %TJPEG_LIB% mfplat.lib mfuuid.lib ole32.lib advapi32.lib
+    "%OUT%\VCamSource.obj" "%OUT%\dllmain.obj" "%OUT%\DsCamera.obj" ^
+    %TJPEG_LIB% mfplat.lib mfuuid.lib strmiids.lib ole32.lib advapi32.lib
 if errorlevel 1 exit /b 1
 if defined PSCAM_SIGN_CMD call %PSCAM_SIGN_CMD% "%OUT%\PSCam4Win.dll"
+
+echo === compiling PSCam4WinDS32.dll (32-bit DirectShow camera) ===
+rem Same filter source, x86 build, for 32-bit applications. Needs the x86 C++
+rem tools (part of the same VS "Desktop development with C++" workload).
+set "VCVARS32_PATH=%VCVARS_PATH:vcvars64.bat=vcvars32.bat%"
+cmd /d /c ""%ROOT%build_ds32.bat" "%VCVARS32_PATH%" "%ROOT%" "%OUT%""
+if errorlevel 1 exit /b 1
+if defined PSCAM_SIGN_CMD call %PSCAM_SIGN_CMD% "%OUT%\PSCam4WinDS32.dll"
 
 echo === compiling resources ===
 rc /nologo /fo "%OUT%\app.res" "%ROOT%res\app.rc"
@@ -122,6 +133,7 @@ cl %HOSTFLAGS% "%ROOT%host\ui\TrayMenu.cpp"         /Fo"%OUT%\TrayMenu.obj"     
 cl %HOSTFLAGS% "%ROOT%host\CameraPreview.cpp"       /Fo"%OUT%\CameraPreview.obj"       || exit /b 1
 cl %HOSTFLAGS% "%ROOT%host\FrameBusPreviewSource.cpp" /Fo"%OUT%\FrameBusPreviewSource.obj" || exit /b 1
 cl %HOSTFLAGS% "%ROOT%host\Autostart.cpp"           /Fo"%OUT%\Autostart.obj"           || exit /b 1
+cl %HOSTFLAGS% "%ROOT%host\DsRegistration.cpp"      /Fo"%OUT%\DsRegistration.obj"      || exit /b 1
 cl %HOSTFLAGS% "%ROOT%common\Settings.cpp"          /Fo"%OUT%\Settings.obj"            || exit /b 1
 cl %HOSTFLAGS% "%ROOT%common\UsbCore.cpp"           /Fo"%OUT%\UsbCore.obj"             || exit /b 1
 cl %HOSTFLAGS% "%ROOT%host\DeviceProfiles.cpp"      /Fo"%OUT%\DeviceProfiles.obj"      || exit /b 1
@@ -142,14 +154,14 @@ link /nologo /LTCG /SUBSYSTEM:WINDOWS /OUT:"%OUT%\PSCam4WinTray.exe" ^
     "%OUT%\MicWatch.obj" "%OUT%\HostLog.obj" ^
     "%OUT%\Theme.obj" "%OUT%\Widgets.obj" "%OUT%\SettingsWindow.obj" "%OUT%\TrayMenu.obj" ^
     "%OUT%\CameraPreview.obj" "%OUT%\FrameBusPreviewSource.obj" ^
-    "%OUT%\Autostart.obj" "%OUT%\Settings.obj" "%OUT%\UsbCore.obj" ^
+    "%OUT%\Autostart.obj" "%OUT%\DsRegistration.obj" "%OUT%\Settings.obj" "%OUT%\UsbCore.obj" ^
     "%OUT%\DeviceProfiles.obj" "%OUT%\DeviceRegistry.obj" "%OUT%\Ps3EyeDevice.obj" ^
     "%OUT%\EyeToyUsb.obj" "%OUT%\EyeToyDevice.obj" ^
     "%OUT%\Ps4Usb.obj" "%OUT%\Ps4Firmware.obj" "%OUT%\Ps4Demosaic.obj" ^
     "%OUT%\Ps4CaptureSource.obj" "%OUT%\Ps4ViewDevice.obj" ^
     "%OUT%\ps3eye.obj" "%OUT%\app.res" ^
     "%LIBUSB_LIB%" %TJPEG_LIB% ^
-    mfplat.lib mfuuid.lib ole32.lib oleaut32.lib advapi32.lib setupapi.lib ^
+    mfplat.lib mfuuid.lib strmiids.lib ole32.lib oleaut32.lib advapi32.lib setupapi.lib ^
     user32.lib gdi32.lib shell32.lib comctl32.lib uxtheme.lib dwmapi.lib secur32.lib taskschd.lib uuid.lib bcrypt.lib ^
     /MANIFEST:EMBED /MANIFESTINPUT:"%ROOT%res\app.manifest" /MANIFESTUAC:NO
 if errorlevel 1 exit /b 1
@@ -163,6 +175,10 @@ rem the setup exe around whatever binaries are in build\ -- CI uses this to
 rem re-embed SIGNED payload binaries).
 if not exist "%OUT%\PSCam4Win.dll" (
     echo error: build\PSCam4Win.dll missing -- run a full build.bat first
+    exit /b 1
+)
+if not exist "%OUT%\PSCam4WinDS32.dll" (
+    echo error: build\PSCam4WinDS32.dll missing -- run a full build.bat first
     exit /b 1
 )
 if not exist "%OUT%\PSCam4WinTray.exe" (

@@ -40,7 +40,8 @@ namespace ops
 {
 
 // ---- environment -----------------------------------------------------------
-bool IsWindows11OrLater();           // RtlGetVersion build >= 22000
+bool IsSupportedWindows();           // RtlGetVersion build >= 19041 (Windows 10 2004 / Win11)
+bool IsWindows11OrLater();           // RtlGetVersion build >= 22000 (Media Foundation virtual camera)
 bool IsProcessElevated();            // TokenElevation
 std::wstring InstallDir();           // %ProgramFiles%\PSCam4Win
 std::wstring LegacyInstallDir();     // %ProgramFiles%\PS3EyeVCam

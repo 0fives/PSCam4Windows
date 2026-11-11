@@ -438,6 +438,28 @@ private:
     }
 };
 
+// (Un)registers the 32-bit DirectShow filter DLL. It cannot be loaded into this
+// 64-bit installer, so the 32-bit regsvr32 does it. Returns true on success or
+// when there is nothing to do (32-bit Windows has no SysWOW64; the DLL absent).
+bool RegisterDs32(SetupContext& ctx, bool unregister)
+{
+    const std::wstring dll = ops::JoinPath(ctx.installDir, payload::kDs32DllName);
+    if (!ops::PathExists(dll))
+        return true;
+    wchar_t wow[MAX_PATH] = {};
+    if (!GetSystemWow64DirectoryW(wow, MAX_PATH))
+        return true;
+    const std::wstring regsvr = ops::JoinPath(wow, L"regsvr32.exe");
+    std::wstring output;
+    const std::wstring args = std::wstring(unregister ? L"/u /s \"" : L"/s \"") + dll + L"\"";
+    const DWORD code = ops::RunProcessCaptured(regsvr, args, output, *ctx.log, nullptr, 30000);
+    if (code != 0)
+        ctx.log->Line(L"%s: 32-bit camera filter %s exited with code %lu",
+                      unregister ? L"warning" : L"error",
+                      unregister ? L"unregistration" : L"registration", code);
+    return code == 0;
+}
+
 // The virtual-camera teardown, in one place: the install rollback and the
 // uninstall step below both run exactly this.
 void UnregisterVCam(SetupContext& ctx)
@@ -445,6 +467,7 @@ void UnregisterVCam(SetupContext& ctx)
     const std::wstring dll = ops::JoinPath(ctx.installDir, payload::kDllName);
     if (ops::PathExists(dll))
         ops::RegisterComDll(dll, true, *ctx.log);
+    RegisterDs32(ctx, true);
     // Belt and braces: the DLL's own unregister also deletes these trees.
     ops::DeleteVCamClsids(*ctx.log);
 }
@@ -471,14 +494,21 @@ public:
         const std::wstring dll = ops::JoinPath(ctx.installDir, payload::kDllName);
         const HRESULT hr = ops::RegisterComDll(dll, false, *ctx.log);
         if (FAILED(hr))
+        {
             ctx.log->Line(L"error: virtual camera registration failed (hr=0x%08X)", hr);
-        return SUCCEEDED(hr);
+            return false;
+        }
+        // The 32-bit filter only matters to 32-bit DirectShow applications, so a
+        // failure here is logged but does not fail the install.
+        RegisterDs32(ctx, false);
+        return true;
     }
 
     void Undo(SetupContext& ctx) noexcept override
     {
         if (!_attempted)
             return;
+        RegisterDs32(ctx, true);
         for (int i = 0; i < kVCamCount; ++i)
         {
             const LSTATUS status = ops::RestoreRegistryTree(HKEY_LOCAL_MACHINE,

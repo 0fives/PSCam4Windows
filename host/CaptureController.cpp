@@ -15,6 +15,7 @@
 #include "DeviceRegistry.h"
 #include "DeviceProfiles.h"
 #include "mfvirtualcamera_min.h"
+#include "DsRegistration.h"
 #include "../common/FrameBus.h"
 #include "../common/ControlBus.h"
 #include "../common/VCamGuids.h"
@@ -190,8 +191,15 @@ void CaptureController::Run()
     // to build its media types from.
     deviceregistry::PublishColdBlock(bus, _cameraIndex);
 
+    // Windows 11 presents the camera through the Media Foundation virtual camera
+    // (the reader is the Frame Server, as LOCAL SERVICE). Windows 10 has no such
+    // API, so the camera is a DirectShow filter instead: its reader is the
+    // consuming application, running as the interactive user.
+    PFN_MFCreateVirtualCamera createVCam = GetMFCreateVirtualCamera();
+    const bool useDirectShow = (createVCam == nullptr);
+
     controlbus::Host control;
-    if (!control.Create(_cameraIndex))
+    if (!control.Create(_cameraIndex, useDirectShow))
     {
         HostLog(L"FATAL: ControlBus creation failed (win32=%lu)", GetLastError());
         SetState(State::Fatal);
@@ -201,7 +209,8 @@ void CaptureController::Run()
     }
 
     // ---- virtual camera registration (dynamic, slot-occupancy driven) -----
-    PFN_MFCreateVirtualCamera createVCam = GetMFCreateVirtualCamera();
+    if (useDirectShow && _cameraIndex == 0)
+        HostLog(L"Media Foundation virtual camera unavailable -- using the DirectShow camera (Windows 10)");
 
     ComPtr<IMFVirtualCamera> vcam;
     bool vcamLive = false;
@@ -209,7 +218,7 @@ void CaptureController::Run()
     int vcamAttempts = 0;
 
     auto tryRegisterVCam = [&]() {
-        if (vcamLive || !createVCam || GetTickCount64() < vcamRetryDue)
+        if (vcamLive || GetTickCount64() < vcamRetryDue)
             return;
         ++vcamAttempts;
         // The virtual camera advertises the name of the device that currently
@@ -218,12 +227,20 @@ void CaptureController::Run()
         // lone EyeToy is just "PS2 EyeToy" rather than "PS2 EyeToy #7".
         wchar_t friendlyName[64];
         deviceregistry::SlotDisplayName(_cameraIndex, friendlyName, 64);
-        HRESULT hr = createVCam(MFVirtualCameraType_SoftwareCameraSource,
-                                MFVirtualCameraLifetime_Session,
-                                MFVirtualCameraAccess_CurrentUser,
-                                friendlyName, kVCamClsidStrings[_cameraIndex], nullptr, 0, &vcam);
-        if (SUCCEEDED(hr))
-            hr = vcam->Start(nullptr);
+        HRESULT hr;
+        if (useDirectShow)
+        {
+            hr = dsregistration::Register(_cameraIndex, friendlyName);
+        }
+        else
+        {
+            hr = createVCam(MFVirtualCameraType_SoftwareCameraSource,
+                            MFVirtualCameraLifetime_Session,
+                            MFVirtualCameraAccess_CurrentUser,
+                            friendlyName, kVCamClsidStrings[_cameraIndex], nullptr, 0, &vcam);
+            if (SUCCEEDED(hr))
+                hr = vcam->Start(nullptr);
+        }
         if (SUCCEEDED(hr))
         {
             vcamLive = true;
@@ -246,7 +263,11 @@ void CaptureController::Run()
         g_externalSlots.fetch_and(~(1u << _cameraIndex), std::memory_order_relaxed);
         if (!vcamLive && !vcam)
             return;
-        if (vcam)
+        if (useDirectShow)
+        {
+            dsregistration::Unregister(_cameraIndex);
+        }
+        else if (vcam)
         {
             vcam->Stop();
             vcam->Remove();
@@ -258,12 +279,6 @@ void CaptureController::Run()
         vcamRetryDue = 0;
         HostLog(L"camera %d: virtual camera unregistered", _cameraIndex);
     };
-
-    if (!createVCam)
-    {
-        HostLog(L"FATAL: MFCreateVirtualCamera unavailable -- Windows 11 22000+ required");
-        SetState(State::Fatal);
-    }
 
     // ---- camera state ------------------------------------------------------
     // The active device for this slot. Built by the registry on wake, destroyed
@@ -758,7 +773,7 @@ void CaptureController::Run()
             // Reconcile the virtual camera with slot occupancy: registered
             // while a physical camera is attached, gone otherwise.
             bool present = false;
-            if (createVCam)
+            // (both the MF and the DirectShow path track slot occupancy)
             {
                 // ProfileForSlot is non-null iff the slot is occupied AND tells us
                 // which device occupies it, in a single enumeration. Re-advertise
@@ -798,13 +813,11 @@ void CaptureController::Run()
                 phase = Phase::Waking;
                 break;
             }
-            if (createVCam)
-                SetState(!present ? State::CameraMissing
-                                  : (vcamLive ? State::Asleep : State::VCamFailed));
+            SetState(!present ? State::CameraMissing
+                                      : (vcamLive ? State::Asleep : State::VCamFailed));
 
             DWORD timeout = INFINITE;
             if (_pendingMode.load(std::memory_order_relaxed)) timeout = 500;
-            if (createVCam)
             {
                 const ULONGLONG now = GetTickCount64();
                 if (!present)

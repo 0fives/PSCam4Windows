@@ -12,7 +12,7 @@ No kernel drivers, and no Zadig.
 
 [![Download](https://img.shields.io/github/v/release/BumbleTree/PSCam4Windows?style=for-the-badge&label=Download&color=2f81f7)](https://github.com/BumbleTree/PSCam4Windows/releases/latest)
 &nbsp;
-![Windows 11](https://img.shields.io/badge/Windows%2011-only-444?style=for-the-badge)
+![Windows 10 / 11](https://img.shields.io/badge/Windows%2010%20%7C%2011-444?style=for-the-badge)
 &nbsp;
 ![GPLv2](https://img.shields.io/badge/license-GPLv2-444?style=for-the-badge)
 

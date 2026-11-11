@@ -129,12 +129,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     const std::wstring selfDir = ops::DirName(selfPath);
 
     // ---- gates ---------------------------------------------------------------
-    if (!ops::IsWindows11OrLater())
+    if (!ops::IsSupportedWindows())
     {
         MessageBoxW(nullptr,
-            L"PSCam4Win requires Windows 11 (build 22000 or higher).\n\n"
-            L"Windows 10 is not supported because it lacks the Media Foundation "
-            L"Virtual Camera API (IMFVirtualCamera).",
+            L"PSCam4Win requires Windows 10 version 2004 (build 19041) or later.\n\n"
+            L"On Windows 10 the camera is presented as a DirectShow device; "
+            L"Windows 11 uses the Media Foundation virtual camera.",
             L"PSCam4Win Setup", MB_OK | MB_ICONERROR);
         return 1;
     }

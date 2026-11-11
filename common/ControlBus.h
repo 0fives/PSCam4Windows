@@ -23,6 +23,14 @@ namespace controlbus {
 
 constexpr const wchar_t* kSddl = L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)";
 
+// Windows 10 (DirectShow) variant. There the reader is the DirectShow filter
+// loaded into the consuming application, which runs as the interactive user
+// rather than LOCAL SERVICE, so the interactive user must be able to stamp the
+// keepalive and pulse the wake event. The cost: any process of the logged-on
+// user can keep the camera awake. Never used on the Windows 11 Frame Server path.
+constexpr const wchar_t* kSddlInteractiveUser =
+    L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;GRGW;;;IU)";
+
 constexpr uint32_t kMagic   = 0x50334543;  // 'P3EC'
 constexpr uint32_t kVersion = 2;
 
@@ -67,7 +75,9 @@ class Host
 public:
     ~Host() { Close(); }
 
-    [[nodiscard]] bool Create(int cameraIndex)
+    // allowInteractiveUser: grant the logged-on user write access (the Windows 10
+    // DirectShow path; see kSddlInteractiveUser).
+    [[nodiscard]] bool Create(int cameraIndex, bool allowInteractiveUser = false)
     {
         wchar_t sectionName[64];
         wchar_t wakeEventName[64];
@@ -76,7 +86,8 @@ public:
 
         SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, FALSE };
         if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
-                kSddl, SDDL_REVISION_1, &sa.lpSecurityDescriptor, nullptr))
+                allowInteractiveUser ? kSddlInteractiveUser : kSddl,
+                SDDL_REVISION_1, &sa.lpSecurityDescriptor, nullptr))
             return false;
 
         _map = CreateFileMappingW(INVALID_HANDLE_VALUE, &sa, PAGE_READWRITE,
